@@ -21,6 +21,8 @@ sudo ./debian-sid-postinstall.sh
 | `sudo ./debian-sid-postinstall.sh 2 4` | Run selected steps |
 | `sudo ./debian-sid-postinstall.sh S` | Open the software menu |
 
+**Starting from Debian stable (trixie)?** Run the script anyway. It notices, and offers to convert the machine to forky (testing) or sid (unstable): it switches the apt sources, upgrades every package and reboots. Run it again afterwards for the set-up itself. See [Converting from stable](#converting-from-stable).
+
 Run it from a terminal inside your own desktop session, so the GNOME step can apply extensions and settings to your user.
 
 **No sudo?** If you set a root password during the Debian install, your user isn't in the sudo group. Run the script as root instead and tell it who you are:
@@ -30,6 +32,30 @@ su -c 'DESKTOP_USER=yourname ./debian-sid-postinstall.sh'
 ```
 
 The script also works on its own, without the rest of the repo. In that case the bundled extension and wallpaper are downloaded from this repo on GitHub.
+
+## Converting from stable
+
+A fresh Debian install is usually stable (trixie), and everything here expects forky or sid. On stable, the script stops before the menu and asks two things: whether to convert, and to which.
+
+| Choice | What it is |
+|---|---|
+| sid | Unstable: newest packages, occasional breakage |
+| forky | Testing: a few days behind sid, calmer |
+
+If you say yes, it:
+
+1. Takes a snapshot first, if the root filesystem is Btrfs.
+2. Points the Debian apt sources at your choice, keeping each original as a `.bak` file. sid has no security or updates suites, so those entries are switched off; for forky they are renamed.
+3. Runs `apt update` and `apt full-upgrade`. This is the long part.
+4. Asks you to press Enter to reboot. Run the script again afterwards.
+
+If you say no, nothing is changed and the script exits.
+
+Things to know:
+
+- **Only do this on a fresh install.** The upgrade removes and replaces packages freely, and there is no way back to stable short of reinstalling.
+- **If the upgrade stops partway**, the script tries one automatic repair. If that fails too, fix the error it shows and run the script again; it sees the half-finished conversion and picks the upgrade back up.
+- **You can skip the conversion** by installing forky directly from a [Debian testing installer image](https://www.debian.org/devel/debian-installer/). The script then goes straight to the menu.
 
 ## What it does
 
