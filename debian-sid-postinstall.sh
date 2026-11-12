@@ -33,6 +33,10 @@
 #   S) Software submenu: Brave Origin, qBittorrent, VLC, Bitwarden, Mullvad VPN,
 #      VS Code, Claude Code, Extension Manager  (apt first, Flathub fallback)
 #
+#  Starting from Debian stable (trixie)? On its first run the script notices and
+#  offers to convert the machine to forky or sid: it switches the apt sources,
+#  runs the full upgrade and reboots. Run it again afterwards for the set-up.
+#
 #  Unattended: the steps don't stop to ask questions. Every choice is a setting
 #  in the SETTINGS block below - edit it, or override one for a single run:
 #      sudo OPT_GRUB_BTRFS=n ./debian-sid-postinstall.sh 8
@@ -219,13 +223,14 @@ fi
 touch "$LOG"; chmod 600 "$LOG"
 echo "===== $(date -Is) run started =====" >>"$LOG"
 
-# shellcheck disable=SC1091
-. /etc/os-release
+# shellcheck disable=SC1090,SC1091
+. "${OS_RELEASE:-/etc/os-release}"
 if [[ ${ID:-} != debian ]]; then
   err "This is not Debian (ID=${ID:-unknown}). Aborting."; exit 1
 fi
 case "${VERSION_CODENAME:-}" in
   forky|sid) ;;
+  trixie) ;;      # stable: check_release (further down) offers to convert it
   *) warn "Written for Debian forky/sid; you are on '${VERSION_CODENAME:-${VERSION_ID:-unknown}}'. Some package names may differ." ;;
 esac
 ARCH="$(dpkg --print-architecture)"
@@ -1550,6 +1555,207 @@ status_gaming() {
   echo ok
 }
 
+# =============================================================================
+#  STABLE -> FORKY/SID
+#  A fresh Debian install is usually stable (trixie). Everything in this script
+#  expects forky (testing) or sid (unstable), so on stable it offers to convert
+#  the machine first: switch the apt sources, run the full upgrade, reboot.
+# =============================================================================
+STABLE_NAMES="trixie|stable"      # suite names that mean "this is still stable"
+
+# Print every suite named in the active Debian archive entries, one per line.
+debian_suites() {
+  local f
+  while IFS= read -r f; do
+    case $f in
+      *.sources)
+        awk 'BEGIN { RS = ""; FS = "\n" }
+             tolower($0) ~ /uris:[^\n]*debian\.org/ && tolower($0) !~ /enabled:[ \t]*no/ {
+               for (i = 1; i <= NF; i++) if (tolower($i) ~ /^suites:/) {
+                 sub(/^[^:]*:[ \t]*/, "", $i); n = split($i, a, /[ \t]+/)
+                 for (k = 1; k <= n; k++) if (a[k] != "") print a[k]
+               }
+             }' "$f" ;;
+      *)
+        awk '/^[ \t]*deb(-src)?[ \t]/ && /debian\.org/ {
+               i = 2; if ($i ~ /^\[/) { while (i <= NF && $i !~ /\]$/) i++; i++ }
+               print $(i + 1)
+             }' "$f" ;;
+    esac
+  done < <(debian_source_files)
+}
+
+suite_class() {   # sid | forky | stable | unknown  - what the apt sources point at
+  local all; all="$(debian_suites | sort -u)"
+  if grep -qxE 'sid|unstable' <<<"$all"; then echo sid
+  elif grep -qxE 'forky|testing' <<<"$all"; then echo forky
+  elif grep -qE "^($STABLE_NAMES)(-|\$)" <<<"$all"; then echo stable
+  else echo unknown; fi
+}
+
+# Print FILE with its stable suites pointed at TARGET (forky or sid).
+#   sid has no -security or -updates suites, so those entries are switched off;
+#   forky has both, so they are renamed. Backports entries are switched off for either.
+retarget_sources() {   # retarget_sources FILE TARGET
+  local common='
+    function mapsuite(t) {                       # new name for a stable suite, or "" to drop it
+      if (t ~ /-security$/) return (target == "sid") ? "" : target "-security"
+      if (t ~ /-updates$/ && t !~ /proposed/) return (target == "sid") ? "" : target "-updates"
+      if (t ~ /-/) return ""                     # backports, proposed-updates…
+      return target
+    }
+    function isstable(t) { return t ~ ("^(" from ")(-.*)?$") }'
+  case $1 in
+    *.sources)
+      awk -v target="$2" -v from="$STABLE_NAMES" "$common"'
+        function flush(   i, k, n, a, isdeb, out, new, dead, hasen) {
+          isdeb = 0; dead = 0; hasen = 0
+          for (i = 1; i <= cnt; i++) {
+            if (tolower(buf[i]) ~ /^uris:.*debian\.org/) isdeb = 1
+            if (tolower(buf[i]) ~ /^enabled:/) hasen = i
+          }
+          if (isdeb) for (i = 1; i <= cnt; i++) if (tolower(buf[i]) ~ /^suites:/) {
+            line = buf[i]; sub(/^[^:]*:[ \t]*/, "", line); n = split(line, a, /[ \t]+/); out = ""; changed = 0
+            for (k = 1; k <= n; k++) {
+              if (a[k] == "") continue
+              if (isstable(a[k])) { new = mapsuite(a[k]); changed = 1 } else new = a[k]
+              if (new != "" && index(" " out " ", " " new " ") == 0) out = (out == "" ? new : out " " new)
+            }
+            if (!changed) continue
+            if (out == "") dead = 1; else buf[i] = "Suites: " out
+          }
+          if (dead) {                            # nothing left for this entry on the target: switch it off
+            if (hasen) buf[hasen] = "Enabled: no"; else print "Enabled: no"
+          }
+          for (i = 1; i <= cnt; i++) print buf[i]
+          cnt = 0
+        }
+        /^[ \t]*$/ { flush(); print; next }
+        { buf[++cnt] = $0 }
+        END { flush() }' "$1" ;;
+    *)
+      awk -v target="$2" -v from="$STABLE_NAMES" "$common"'
+        /^[ \t]*deb cdrom:/ { print "# " $0 "   # disabled by debian-sid-postinstall (install media)"; next }
+        /^[ \t]*deb(-src)?[ \t]/ && /debian\.org/ {
+          i = 2; if ($i ~ /^\[/) { while (i <= NF && $i !~ /\]$/) i++; i++ }
+          s = $(i + 1)
+          if (isstable(s)) {
+            new = mapsuite(s)
+            if (new == "") { print "# " $0 "   # disabled by debian-sid-postinstall: no such suite on " target; next }
+            $(i + 1) = new
+          }
+          print; next
+        }
+        { print }' "$1" ;;
+  esac
+}
+
+# Run the big upgrade, with one automatic repair-and-retry.
+conversion_upgrade() {
+  APT_FRESH=0
+  apt_refresh || { err "apt update failed - check your network and $LOG, then run this script again."; return 1; }
+  info "Upgrading every package. This is the long part - leave it running."
+  if ! apt_get full-upgrade; then
+    warn "The upgrade stopped. Repairing and trying again…"
+    run dpkg --configure -a || true
+    apt_get -f install || true
+    apt_get full-upgrade || return 1
+  fi
+  apt_get autoremove || true
+}
+
+convert_offer_reboot() {
+  echo
+  ok "The upgrade has finished. The machine needs a reboot to start the new system."
+  echo "    After it comes back up, run this script again to carry on with the set-up."
+  if read -rp "    Press Enter to reboot now (or Ctrl+C to reboot later yourself): " _; then
+    systemctl reboot
+  fi
+  exit 0
+}
+
+convert_to_rolling() {
+  local target f ans
+  echo
+  echo "${C_B}This machine is on Debian stable (${VERSION_CODENAME:-trixie}).${C_0}"
+  echo "    This script sets up Debian forky (testing) or sid (unstable), so the machine"
+  echo "    has to be converted first. That means:"
+  echo "      - pointing apt at forky or sid instead of ${VERSION_CODENAME:-trixie}"
+  echo "      - upgrading every installed package (a few thousand; allow a good while)"
+  echo "      - rebooting, then running this script again"
+  echo "    ${C_Y}Only do this on a fresh install.${C_0} The upgrade removes and replaces packages"
+  echo "    freely, and there is no going back to stable afterwards short of reinstalling."
+  echo
+  if ! ask_yn "Convert this machine to forky/sid?" n; then
+    echo "    Nothing was changed. The rest of this script needs forky or sid, so it stops here."
+    exit 0
+  fi
+  echo
+  echo "    Which one?"
+  echo "      1) sid    - unstable: newest packages, occasional breakage"
+  echo "      2) forky  - testing: a few days behind sid, calmer"
+  read -rp "    Choice [1]: " ans || ans=""
+  case "${ans:-1}" in
+    1|sid|SID)       target=sid ;;
+    2|forky|FORKY)   target=forky ;;
+    *) echo "    Not 1 or 2 - nothing was changed."; exit 0 ;;
+  esac
+
+  # A rollback point first, where the filesystem can give us one
+  if [[ $(findmnt -n -o FSTYPE /) == btrfs ]]; then
+    info "Root is Btrfs - taking a snapshot before changing anything…"
+    if apt_install snapper; then
+      snapper -c root get-config >/dev/null 2>&1 || run snapper -c root create-config / || true
+      run snapper -c root create -c important -d "before converting ${VERSION_CODENAME:-stable} to $target" \
+        && ok "Snapshot taken." || warn "Could not take a snapshot - carrying on without one."
+    else
+      warn "snapper could not be installed - carrying on without a snapshot."
+    fi
+  else
+    warn "Root is not Btrfs, so there is no snapshot to fall back on."
+  fi
+
+  info "Pointing apt at $target…"
+  while IFS= read -r f; do
+    if ! retarget_sources "$f" "$target" | cmp -s - "$f"; then
+      [[ -e $f.bak ]] || cp -p "$f" "$f.bak"      # apt ignores *.bak files
+      retarget_sources "$f" "$target" >"$f.new" && cat "$f.new" >"$f" && rm -f "$f.new"
+      info "Updated $f (original kept as ${f##*/}.bak)."
+    fi
+  done < <(debian_source_files)
+  if [[ "$(suite_class)" != "$target" ]]; then
+    err "The apt sources don't point at $target after editing - not upgrading. Check the files under $APT_DIR (originals are the .bak files)."
+    exit 1
+  fi
+
+  conversion_upgrade || {
+    err "The upgrade did not finish. Nothing is lost: read the error above (full log: $LOG),"
+    echo "    fix it if you can, then run this script again - it will pick the upgrade back up."
+    exit 1
+  }
+  convert_offer_reboot
+}
+
+# Called once at start-up: decide whether this machine still needs converting.
+check_release() {
+  local class; class="$(suite_class)"
+  case $class in
+    stable)
+      convert_to_rolling ;;
+    sid|forky)
+      # Sources already switched but the system itself is still stable: an earlier conversion didn't finish
+      if [[ "${VERSION_CODENAME:-}" =~ ^($STABLE_NAMES)$ ]]; then
+        echo
+        warn "apt points at $class, but the system is still ${VERSION_CODENAME}: an earlier conversion didn't finish."
+        ask_yn "Carry on with the upgrade to $class now?" y || { echo "    Stopping - the rest of this script needs the upgrade finished."; exit 0; }
+        conversion_upgrade || { err "The upgrade did not finish - see $LOG, then run this script again."; exit 1; }
+        convert_offer_reboot
+      fi ;;
+    *)
+      warn "Couldn't tell which Debian release the apt sources point at - carrying on." ;;
+  esac
+}
+
 # ---------- menu -------------------------------------------------------------
 STEPS=(update components codecs nvidia drivers devtools vmware snapshots flathub firmware gnome msfonts gaming)
 LABELS=(
@@ -1641,6 +1847,9 @@ finish() {
     else warn "A reboot is needed to finish - reboot when convenient."; fi
   fi
 }
+
+# Still on Debian stable? Offer to convert to forky/sid before anything else.
+check_release
 
 # Non-interactive: arguments on the command line
 if [[ $# -gt 0 ]]; then
