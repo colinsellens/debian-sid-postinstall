@@ -18,7 +18,8 @@
 #   6) Build tools (GCC, make, kernel headers, DKMS)
 #   7) VMware Workstation Pro modules (vmmon/vmnet): build, sign, auto-rebuild
 #   Extras:
-#   8) Btrfs snapshots: snapper, snapshot around every apt run, optional grub-btrfs
+#   8) Btrfs snapshots: snapper, snapshot around every apt run, optional grub-btrfs,
+#      /home moved into its own subvolume
 #   9) Flathub
 #  10) Firmware updates via fwupd
 #  11) GNOME tweaks: min/max buttons, AppIndicator, Dash to Dock, Extension Manager,
@@ -77,6 +78,7 @@ ACCENT_UUID="accent-color-everywhere@framagit.org"
 OPT_FULL_UPGRADE="${OPT_FULL_UPGRADE:-n}"               #  1: y = 'apt full-upgrade' (may REMOVE packages mid-transition on sid); n = safe upgrade
 OPT_BROADCOM_WL="${OPT_BROADCOM_WL:-n}"                 #  5: proprietary broadcom-sta Wi-Fi driver (only if a Broadcom chip is found)
 OPT_GRUB_BTRFS="${OPT_GRUB_BTRFS:-y}"                   #  8: grub-btrfs (boot snapshots from the GRUB menu)
+OPT_HOME_SUBVOLUME="${OPT_HOME_SUBVOLUME:-y}"           #  8: move /home into its own Btrfs subvolume at the next boot, so snapshots of / leave it out
 OPT_APPLY_FIRMWARE="${OPT_APPLY_FIRMWARE:-y}"           # 10: apply firmware updates (n = only list them)
 OPT_ACCENT_COLOR="${OPT_ACCENT_COLOR:-y}"               # 11: bundled Accent Color Everywhere extension
 OPT_APPINDICATOR="${OPT_APPINDICATOR:-y}"               # 11: tray icons (AppIndicator extension)
@@ -663,6 +665,111 @@ flathub_enabled() { flatpak remotes --columns=name 2>/dev/null | grep -qx flathu
 # ---------- STEP 8: Btrfs snapshots ------------------------------------------
 SNAPPER_APT_HOOK="/etc/apt/apt.conf.d/80snapper"                 # shipped by Debian's snapper package
 SNAPPER_APT_HOOK_OWN="/etc/apt/apt.conf.d/80postinstall-snapper" # written here only if that one is missing
+# --- /home in its own subvolume -------------------------------------------------
+# Debian's installer puts /home inside the root subvolume, so every snapshot of /
+# drags your home folder along. This moves /home into its own subvolume (@home).
+# The move itself runs once at the next boot, before anyone can log in, so no file
+# in /home is in use while it happens.
+HOME_MOVER="/usr/local/sbin/home-to-subvolume"
+HOME_MOVER_UNIT="/etc/systemd/system/home-to-subvolume.service"
+
+write_home_mover() {
+  install -d /usr/local/sbin
+  cat >"$HOME_MOVER" <<'MOVER'
+#!/bin/sh
+# home-to-subvolume: move /home into its own Btrfs subvolume (@home).
+# Written by debian-sid-postinstall. Runs once, early at boot, then disables itself.
+# Usage: home-to-subvolume [ROOT]     (ROOT defaults to / ; another path is for testing)
+set -eu
+ROOT="${1:-/}"
+FSTAB="${FSTAB:-/etc/fstab}"
+HOME_DIR="${ROOT%/}/home"
+LOG="${LOG:-/var/log/home-to-subvolume.log}"
+exec >>"$LOG" 2>&1
+echo "== $(date) =="
+
+finish() {   # nothing (more) to do: switch the boot-time service off
+  if [ "$ROOT" = / ]; then systemctl disable home-to-subvolume.service >/dev/null 2>&1 || true; fi
+  exit 0
+}
+
+[ "$(findmnt -n -o FSTYPE "$ROOT")" = btrfs ] || { echo "root is not Btrfs - nothing to do"; finish; }
+[ -d "$HOME_DIR" ] || { echo "no $HOME_DIR - nothing to do"; finish; }
+if mountpoint -q "$HOME_DIR"; then echo "$HOME_DIR is already a separate filesystem or subvolume"; finish; fi
+if grep -Eq '^[^#]*[[:space:]]/home[[:space:]]' "$FSTAB"; then echo "$FSTAB already has a /home entry - leaving it alone"; finish; fi
+
+dev="$(findmnt -n -o SOURCE "$ROOT" | sed 's/\[.*//')"
+rootsub="$(findmnt -n -o FSROOT "$ROOT")"; [ "$rootsub" = / ] && rootsub=""
+top="$(mktemp -d)"
+trap 'umount "$top" 2>/dev/null || true; rmdir "$top" 2>/dev/null || true' EXIT
+mount -o subvolid=5 "$dev" "$top"
+old="$top$rootsub/home"
+new="$top/@home"
+mark="$top/@home.being-created"
+[ -d "$old" ] || { echo "cannot see the current home folder at $old - stopping"; exit 1; }
+
+# A half-made @home from an interrupted earlier attempt is ours to redo; anything else is not ours to touch
+if [ -e "$new" ]; then
+  if [ -e "$mark" ]; then btrfs subvolume delete "$new"
+  else echo "a subvolume called @home already exists and was not made by this script - stopping"; exit 1; fi
+fi
+: >"$mark"
+btrfs subvolume create "$new"
+
+# Reflink copy: instant and takes no extra space, because both copies share the same data blocks
+cp -a --reflink=always "$old/." "$new/"
+
+count() { (cd "$1" && find . | wc -l); }
+bytes() { (cd "$1" && find . -type f -printf '%s\n' | awk '{s+=$1} END {print s+0}'); }
+if [ "$(count "$old")" != "$(count "$new")" ] || [ "$(bytes "$old")" != "$(bytes "$new")" ]; then
+  echo "the copy does not match the original - leaving /home exactly as it was"; exit 1
+fi
+
+# Mount it like the root filesystem, but on the @home subvolume
+uuid="$(findmnt -n -o UUID "$ROOT")"
+opts="$(awk '$1 !~ /^#/ && $2 == "/" {print $4; exit}' "$FSTAB" | tr ',' '\n' | grep -Ev '^(subvol|subvolid)=' | paste -sd, -)"
+[ -n "$opts" ] || opts=defaults
+printf '%s\n' "UUID=$uuid  /home  btrfs  $opts,subvol=@home  0  0" >>"$FSTAB"
+mount -o subvol=@home "$dev" "$HOME_DIR"
+rm -f "$mark"
+
+# The old copy is now hidden underneath the new mount; remove it so snapshots of / stop carrying it
+if [ "$old" -ef "$new" ]; then echo "old and new are the same folder?! not deleting anything"; exit 1; fi
+find "$old" -mindepth 1 -delete
+echo "done: $HOME_DIR is now the @home subvolume"
+if [ "$ROOT" = / ]; then systemctl daemon-reload || true; fi
+finish
+MOVER
+  chmod 755 "$HOME_MOVER"
+  cat >"$HOME_MOVER_UNIT" <<UNIT
+[Unit]
+Description=Move /home into its own Btrfs subvolume (one-off)
+After=local-fs.target
+Before=systemd-user-sessions.service display-manager.service
+ConditionPathExists=$HOME_MOVER
+
+[Service]
+Type=oneshot
+ExecStart=$HOME_MOVER
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+}
+
+home_is_separate() { mountpoint -q /home || grep -Eq '^[^#]*[[:space:]]/home[[:space:]]' /etc/fstab; }
+home_move_pending() { [[ -f $HOME_MOVER_UNIT ]] && systemctl is-enabled home-to-subvolume.service >/dev/null 2>&1; }
+
+setup_home_subvolume() {
+  if home_is_separate; then ok "/home is already separate from the root subvolume."; return 0; fi
+  write_home_mover
+  systemctl daemon-reload
+  run systemctl enable home-to-subvolume.service || { warn "Could not schedule the /home move."; return 1; }
+  NEED_REBOOT=1
+  ok "/home will be moved into its own subvolume at the next boot (log: /var/log/home-to-subvolume.log)."
+  info "The baseline snapshot below still holds /home as it is now, should you ever need it back."
+}
+
 step_snapshots() {
   if [[ $(findmnt -n -o FSTYPE /) != btrfs ]]; then
     warn "Root filesystem is not Btrfs (Debian's installer defaults to ext4) - snapshots skipped."; return 2
@@ -692,6 +799,10 @@ step_snapshots() {
 DPkg::Pre-Invoke { "if [ -x /usr/bin/snapper ] && [ -e /etc/snapper/configs/root ]; then snapper -c root create -c number -d apt || true; fi"; };
 HOOK
     ok "apt will snapshot / before every run."
+  fi
+
+  if opt OPT_HOME_SUBVOLUME "Give /home its own subvolume (done at the next boot)"; then
+    setup_home_subvolume || warn "/home left inside the root subvolume."
   fi
 
   run snapper -c root create -c important -d "baseline before debian-sid-postinstall" \
@@ -1414,7 +1525,8 @@ status_vmware() {
 }
 status_snapshots() {
   [[ $(findmnt -n -o FSTYPE /) == btrfs ]] || { echo "na:root is not Btrfs"; return; }
-  [[ -f /etc/snapper/configs/root ]] && [[ -f $SNAPPER_APT_HOOK || -f $SNAPPER_APT_HOOK_OWN ]] && echo ok
+  [[ -f /etc/snapper/configs/root ]] && [[ -f $SNAPPER_APT_HOOK || -f $SNAPPER_APT_HOOK_OWN ]] || return
+  if home_move_pending; then echo "warn:reboot to move /home to its own subvolume"; else echo ok; fi
 }
 status_flathub()  { flathub_enabled && echo ok; }
 status_firmware() { :; }   # needs a network check - only known after running the step

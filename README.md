@@ -42,7 +42,7 @@ The script also works on its own, without the rest of the repo. In that case the
 | 5 | Other drivers and firmware | Broadcom Wi-Fi, GPU/Wi-Fi/audio firmware, CPU microcode |
 | 6 | Build tools | GCC, make, kernel headers, DKMS |
 | 7 | VMware Workstation modules | builds and signs vmmon/vmnet, rebuilds on kernel updates |
-| 8 | Btrfs snapshots | snapper, a snapshot around every apt run, grub-btrfs |
+| 8 | Btrfs snapshots | snapper, a snapshot around every apt run, grub-btrfs, `/home` in its own subvolume |
 | 9 | Flathub | Flatpak plus the Flathub catalogue |
 | 10 | Firmware updates | fwupd / LVFS |
 | 11 | GNOME | extensions, settings, keyboard shortcuts, wallpaper |
@@ -56,7 +56,8 @@ With Secure Boot on, one signing key (the DKMS key) is shared by the NVIDIA, Bro
 Two Debian specifics:
 
 - **Step 2 edits your apt sources.** It adds the three sections to every Debian archive entry, in either sources format, keeps the original as a `.bak` file, and disables any leftover install-media (`cdrom:`) entry.
-- **Step 8 needs a Btrfs root.** Debian's installer defaults to ext4, in which case the step is skipped.
+- **Step 8 needs a Btrfs root.** Debian's installer defaults to ext4, in which case the step is skipped. To get Btrfs, use the installer's guided partitioning and change the root partition's "Use as" from ext4 to btrfs.
+- **Step 8 moves `/home` into its own subvolume.** Debian's installer puts `/home` inside the root subvolume, so snapshots of `/` would include your home folder. The move runs once at the next boot, before anyone can log in, and is logged to `/var/log/home-to-subvolume.log`. It is skipped if `/home` is already separate.
 
 ## Software
 
@@ -176,6 +177,7 @@ sudo OPT_GRUB_BTRFS=n ./debian-sid-postinstall.sh 8
 | `OPT_FULL_UPGRADE` | n | 1 | Use `apt full-upgrade`, which may remove packages during a sid transition. `n` uses a plain upgrade and leaves those packages held back for you to review |
 | `OPT_BROADCOM_WL` | n | 5 | Proprietary Broadcom Wi-Fi driver, if a Broadcom chip is found |
 | `OPT_GRUB_BTRFS` | y | 8 | grub-btrfs, so snapshots can be booted from GRUB |
+| `OPT_HOME_SUBVOLUME` | y | 8 | Move `/home` into its own Btrfs subvolume at the next boot |
 | `OPT_APPLY_FIRMWARE` | y | 10 | Apply firmware updates (`n` only lists them) |
 | `OPT_ACCENT_COLOR` | y | 11 | Accent Color Everywhere extension |
 | `OPT_APPINDICATOR` | y | 11 | AppIndicator tray icons |
