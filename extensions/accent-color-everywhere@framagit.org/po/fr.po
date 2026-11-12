@@ -1,0 +1,152 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: accent-color-everywhere\n"
+"Language: fr\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: prefs.js
+msgid "9 GNOME colors"
+msgstr "9 couleurs GNOME"
+
+#: prefs.js
+msgid "Accent color"
+msgstr "Couleur d’accentuation"
+
+#: prefs.js
+msgid "App folders, hovered and selected apps, folder window and dash"
+msgstr ""
+"Dossiers d’applis, applis survolées et sélectionnées, fenêtre de dossier et "
+"dash"
+
+#: prefs.js
+msgid "Both"
+msgstr "Les deux"
+
+#: prefs.js
+msgid "Closer to the wallpaper; some apps only change after being restarted"
+msgstr "Plus fidèle, certaines applis à relancer"
+
+#: prefs.js
+msgid "Color to recolor in mixed themes such as Tela-dracula"
+msgstr "Couleur à recolorer dans les thèmes mixtes comme Tela-dracula"
+
+#: prefs.js
+msgid "Color type"
+msgstr "Type de couleur"
+
+#: prefs.js
+msgid "Custom"
+msgstr "Personnalisée"
+
+#: prefs.js
+msgid "Custom color"
+msgstr "Couleur personnalisée"
+
+#: prefs.js
+msgid ""
+"Device lighting in the accent color, through the SDK server (port 6742)"
+msgstr ""
+"Éclairage des périphériques à la couleur d’accentuation, via le serveur SDK "
+"(port 6742)"
+
+#: prefs.js
+msgid "Exact color"
+msgstr "Couleur exacte"
+
+#: prefs.js
+msgid "Flatpak apps"
+msgstr "Applis Flatpak"
+
+#: prefs.js
+msgid "Focused window outline"
+msgstr "Contour de la fenêtre active"
+
+#: prefs.js
+msgid "Folder icons"
+msgstr "Icônes de dossiers"
+
+#: prefs.js
+msgid "GNOME Settings"
+msgstr "Paramètres GNOME"
+
+#: prefs.js
+msgid "GTK 3 and GTK 4"
+msgstr "GTK 3 et GTK 4"
+
+#: prefs.js
+msgid "Games and hardware"
+msgstr "Jeux et matériel"
+
+#: prefs.js
+msgid ""
+"Generates a recolored copy of the current icon theme, mixed themes included"
+msgstr ""
+"Génère une copie recolorée du thème d’icônes actuel, thèmes mixtes compris"
+
+#: prefs.js
+msgid "Hide on maximized windows"
+msgstr "Masquer sur les fenêtres maximisées"
+
+#: prefs.js
+msgid "Main color"
+msgstr "Principale"
+
+#: prefs.js
+msgid "Only installed software is listed"
+msgstr "Seuls les logiciels installés sont listés"
+
+#: prefs.js
+msgid "Outline width"
+msgstr "Épaisseur du contour"
+
+#: prefs.js
+msgid "Overlay colors in MangoHud.conf (existing file only)"
+msgstr ""
+"Couleurs de l’overlay dans MangoHud.conf (fichier existant uniquement)"
+
+#: prefs.js
+msgid "Same color everywhere, changes instantly in every app"
+msgstr "Identique partout, change tout de suite"
+
+#: prefs.js
+msgid "Secondary color"
+msgstr "Secondaire"
+
+#: prefs.js
+msgid ""
+"Selection colors in every Wine prefix found (Wine, Lutris, Faugus, Heroic)"
+msgstr ""
+"Couleurs de sélection dans chaque préfixe Wine trouvé (Wine, Lutris, Faugus,"
+" Heroic)"
+
+#: prefs.js
+msgid "Source"
+msgstr "Source"
+
+#: prefs.js
+msgid "Title bars in the accent color"
+msgstr "Barres de titre à la couleur d’accentuation"
+
+#: prefs.js
+msgid "Two-color icon themes"
+msgstr "Thèmes d’icônes bicolores"
+
+#: prefs.js
+msgid "Wallpaper"
+msgstr "Fond d’écran"
+
+msgid "App grid"
+msgstr "Grille d’applications"
+
+msgid "Tint intensity (%)"
+msgstr "Intensité de la teinte (%)"
+
+msgid "Flatpak apps get the accent color"
+msgstr "Les applis Flatpak reçoivent la couleur d’accentuation"
+
+msgid "To let Flatpak apps use the accent color, enable this switch"
+msgstr ""
+"Pour que les applis Flatpak prennent la couleur d’accentuation, activez cet "
+"interrupteur"

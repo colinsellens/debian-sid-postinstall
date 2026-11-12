@@ -1,0 +1,140 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: accent-color-everywhere\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: prefs.js
+msgid "9 GNOME colors"
+msgstr ""
+
+#: prefs.js
+msgid "Accent color"
+msgstr ""
+
+#: prefs.js
+msgid "App folders, hovered and selected apps, folder window and dash"
+msgstr ""
+
+#: prefs.js
+msgid "Both"
+msgstr ""
+
+#: prefs.js
+msgid "Closer to the wallpaper; some apps only change after being restarted"
+msgstr ""
+
+#: prefs.js
+msgid "Color to recolor in mixed themes such as Tela-dracula"
+msgstr ""
+
+#: prefs.js
+msgid "Color type"
+msgstr ""
+
+#: prefs.js
+msgid "Custom"
+msgstr ""
+
+#: prefs.js
+msgid "Custom color"
+msgstr ""
+
+#: prefs.js
+msgid ""
+"Device lighting in the accent color, through the SDK server (port 6742)"
+msgstr ""
+
+#: prefs.js
+msgid "Exact color"
+msgstr ""
+
+#: prefs.js
+msgid "Flatpak apps"
+msgstr ""
+
+#: prefs.js
+msgid "Focused window outline"
+msgstr ""
+
+#: prefs.js
+msgid "Folder icons"
+msgstr ""
+
+#: prefs.js
+msgid "GNOME Settings"
+msgstr ""
+
+#: prefs.js
+msgid "GTK 3 and GTK 4"
+msgstr ""
+
+#: prefs.js
+msgid "Games and hardware"
+msgstr ""
+
+#: prefs.js
+msgid ""
+"Generates a recolored copy of the current icon theme, mixed themes included"
+msgstr ""
+
+#: prefs.js
+msgid "Hide on maximized windows"
+msgstr ""
+
+#: prefs.js
+msgid "Main color"
+msgstr ""
+
+#: prefs.js
+msgid "Only installed software is listed"
+msgstr ""
+
+#: prefs.js
+msgid "Outline width"
+msgstr ""
+
+#: prefs.js
+msgid "Overlay colors in MangoHud.conf (existing file only)"
+msgstr ""
+
+#: prefs.js
+msgid "Same color everywhere, changes instantly in every app"
+msgstr ""
+
+#: prefs.js
+msgid "Secondary color"
+msgstr ""
+
+#: prefs.js
+msgid ""
+"Selection colors in every Wine prefix found (Wine, Lutris, Faugus, Heroic)"
+msgstr ""
+
+#: prefs.js
+msgid "Source"
+msgstr ""
+
+#: prefs.js
+msgid "Title bars in the accent color"
+msgstr ""
+
+#: prefs.js
+msgid "Two-color icon themes"
+msgstr ""
+
+#: prefs.js
+msgid "Wallpaper"
+msgstr ""
+
+msgid "App grid"
+msgstr ""
+
+msgid "Tint intensity (%)"
+msgstr ""
+
+msgid "Flatpak apps get the accent color"
+msgstr ""
+
+msgid "To let Flatpak apps use the accent color, enable this switch"
+msgstr ""

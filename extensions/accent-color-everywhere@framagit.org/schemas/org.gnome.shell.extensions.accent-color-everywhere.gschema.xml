@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.accent-color-everywhere" path="/org/gnome/shell/extensions/accent-color-everywhere/">
+    <key name="source" type="s">
+      <choices>
+        <choice value="wallpaper"/>
+        <choice value="custom"/>
+        <choice value="system"/>
+      </choices>
+      <default>'wallpaper'</default>
+    </key>
+    <key name="custom-color" type="s">
+      <default>'#3584e4'</default>
+    </key>
+    <key name="current-color" type="s">
+      <default>''</default>
+    </key>
+    <key name="gnome-palette" type="b"><default>true</default></key>
+    <key name="shell-appgrid" type="b"><default>true</default></key>
+    <key name="appgrid-tint" type="i">
+      <range min="5" max="60"/>
+      <default>15</default>
+    </key>
+    <key name="colored-headerbar" type="b"><default>false</default></key>
+    <key name="target-mangohud" type="b"><default>false</default></key>
+    <key name="target-wine" type="b"><default>false</default></key>
+    <key name="target-openrgb" type="b"><default>false</default></key>
+    <key name="target-icons" type="b"><default>true</default></key>
+    <key name="target-border" type="b"><default>true</default></key>
+    <key name="border-width" type="i">
+      <range min="1" max="8"/>
+      <default>1</default>
+    </key>
+    <key name="border-hide-maximized" type="b"><default>true</default></key>
+    <key name="icon-mix-mode" type="s">
+      <choices>
+        <choice value="body"/>
+        <choice value="secondary"/>
+        <choice value="both"/>
+      </choices>
+      <default>'body'</default>
+    </key>
+    <key name="icon-theme-mixed" type="b"><default>false</default></key>
+    <key name="icon-base-theme" type="s"><default>''</default></key>
+    <key name="saved-gnome-accent" type="s"><default>''</default></key>
+  </schema>
+</schemalist>

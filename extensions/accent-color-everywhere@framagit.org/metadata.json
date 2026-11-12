@@ -1,0 +1,19 @@
+{
+  "uuid": "accent-color-everywhere@framagit.org",
+  "name": "Accent Color Everywhere",
+  "description": "Plasma-like accent color for the whole desktop: taken from the wallpaper, chosen freely or from GNOME Settings, and applied to GNOME Shell, GTK 3/4 (any theme, live), Qt/KDE apps, folder icons (mixed themes like Tela-dracula included), a focused-window outline, and optionally MangoHud, Wine and OpenRGB. Available in English and French.",
+  "shell-version": [
+    "49",
+    "50",
+    "51"
+  ],
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.accent-color-everywhere",
+  "gettext-domain": "accent-color-everywhere",
+  "url": "https://framagit.org/Fred6681/accent-color-everywhere",
+  "version-name": "2.0",
+  "version": 2
+}
