@@ -27,7 +27,7 @@
 #      extensions.gnome.org extensions listed in GNOME_EXTENSIONS, the desktop
 #      background, custom keyboard shortcuts and the GNOME_SETTINGS table
 #  12) Microsoft core fonts (Debian's ttf-mscorefonts-installer)
-#  13) Gaming: Steam, Proton-GE, ProtonUp-Qt, Wine, Lutris, NTSYNC, GameMode,
+#  13) Gaming: Steam, Proton-GE, ProtonUp-Qt, Lutris, NTSYNC, GameMode,
 #      MangoHud, gamescope
 #   A) All of the above - snapshot first, firmware last
 #   S) Software submenu: Brave Origin, qBittorrent, VLC, Bitwarden, Mullvad VPN,
@@ -90,7 +90,7 @@ OPT_DASH_TO_DOCK="${OPT_DASH_TO_DOCK:-y}"               # 11: Dash to Dock
 OPT_MSFONTS_EULA="${OPT_MSFONTS_EULA:-y}"               # 12: y = you accept https://corefonts.sourceforge.net/eula.htm
 OPT_STEAM_LICENCE="${OPT_STEAM_LICENCE:-y}"             # 13: y = you accept the Steam Install Agreement shown by Debian's steam-installer
 OPT_PROTON_GE="${OPT_PROTON_GE:-y}"                     # 13: download the latest Proton-GE into Steam
-GAMING_PACKAGES="${GAMING_PACKAGES-wine winetricks gamemode mangohud gamescope lutris steam-devices}"   # 13: installed alongside Steam
+GAMING_PACKAGES="${GAMING_PACKAGES-gamemode mangohud gamescope lutris steam-devices}"   # 13: installed alongside Steam
 PROTON_GE_REPO="https://github.com/GloriousEggroll/proton-ge-custom"
 OPT_BRAVE_LOCK_BITWARDEN="${OPT_BRAVE_LOCK_BITWARDEN:-n}"       # S: force-install Bitwarden in Brave (can't be switched off)
 OPT_BRAVE_FLATHUB_FALLBACK="${OPT_BRAVE_FLATHUB_FALLBACK:-n}"   # S: if Brave Origin fails, install regular Brave from Flathub
@@ -1227,9 +1227,6 @@ step_gaming() {
   info "Installing gaming extras: $GAMING_PACKAGES"
   apt_install_tolerant "$GAMING_PACKAGES" || rc=1
   skipped="$UNAVAILABLE"
-  if [[ " $skipped " == *" wine "* ]]; then
-    info "Games are unaffected: Steam (Proton) and Lutris bring their own Wine builds. Only standalone Windows apps need the wine package."
-  fi
 
   # NTSYNC: kernel-level Windows synchronisation, used automatically by current Proton-GE
   if modprobe ntsync 2>>"$LOG"; then
@@ -1795,7 +1792,7 @@ LABELS=(
   "Firmware updates (fwupd / LVFS)"
   "GNOME tweaks (buttons, tray, accent colour, Ext. Mgr)"
   "Microsoft core fonts (Arial, Times, Verdana...)"
-  "Gaming (Steam, Proton-GE, Wine, Lutris, GameMode, HUD)"
+  "Gaming (Steam, Proton-GE, Lutris, GameMode, MangoHud)"
 )
 # Order used by 'A': snapshot first so there's a rollback point, firmware near the end
 ALL_ORDER=(snapshots update components codecs nvidia drivers devtools vmware flathub gnome msfonts gaming firmware)

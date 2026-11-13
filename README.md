@@ -73,7 +73,7 @@ Things to know:
 | 10 | Firmware updates | fwupd / LVFS |
 | 11 | GNOME | extensions, settings, keyboard shortcuts, wallpaper |
 | 12 | Microsoft core fonts | Arial, Times New Roman, Verdana and friends |
-| 13 | Gaming | Steam, Proton-GE, Wine, Lutris and performance tools |
+| 13 | Gaming | Steam, Proton-GE, Lutris and performance tools |
 
 `A` runs them in a safe order: a snapshot first so there is a rollback point, firmware last. It does not include the software menu; run `S` for that.
 
@@ -117,7 +117,6 @@ Step 13 sets the machine up for games using Debian's packages. It does not repla
 | Steam | Debian `steam-installer` (non-free), with 32-bit packages enabled | Uses the host's graphics drivers |
 | Proton-GE | Latest [GE-Proton](https://github.com/GloriousEggroll/proton-ge-custom) release, checksum verified | Extra game compatibility |
 | ProtonUp-Qt | Flathub | Add, update or remove Proton-GE versions later |
-| Wine, winetricks | Debian | Windows apps outside Steam |
 | Lutris | Debian | GOG, Epic, Battle.net and other non-Steam games |
 | NTSYNC | The kernel's `ntsync` module, loaded at boot | Kernel-level Windows synchronisation, used automatically by current Proton-GE |
 | GameMode | Debian | CPU governor and priority tweaks while a game runs |
@@ -134,6 +133,8 @@ After the step:
 - Start Steam once and sign in, then choose Proton-GE under Settings > Compatibility.
 - To use GameMode and MangoHud for a game, set its launch options to `gamemoderun mangohud %command%`.
 - Keep game libraries on a Linux filesystem (ext4 or Btrfs). Proton games fail on NTFS and exFAT drives.
+
+A standalone Wine is deliberately not installed: Steam (Proton) and Lutris each bring their own Wine builds. If you need one for other Windows programs, add `wine` to `GAMING_PACKAGES`.
 
 Change `GAMING_PACKAGES` in the settings block to add or drop packages, and set `OPT_PROTON_GE=n` to skip the Proton-GE download (about 550 MB). Re-running the step fetches a newer Proton-GE if one has been released.
 
@@ -229,7 +230,7 @@ sudo OPT_GRUB_BTRFS=n ./debian-sid-postinstall.sh 8
 - **Status:** the menus show what is already installed, read from the system, so they are accurate after a reboot. Steps 1 and 10 stay blank because checking them needs the network.
 - **Re-running is safe:** steps skip or refresh what is already there.
 - **Log:** everything is written to `/var/log/debian-sid-postinstall.log`.
-- **Packages come and go on forky/sid.** Where a list of packages is installed (firmware, gaming extras), anything Debian doesn't offer at that moment is skipped and named, and the rest still install. Re-run the step later to pick it up. Wine is a common example: it is sometimes out of testing for a while. Games are unaffected, because Steam (Proton) and Lutris bring their own Wine builds.
+- **Packages come and go on forky/sid.** Where a list of packages is installed (firmware, gaming extras), anything Debian doesn't offer at that moment is skipped and named, and the rest still install. Re-run the step later to pick it up.
 - **Other Debian releases:** the script warns but carries on; some package names may differ on stable.
 
 ## Licence
