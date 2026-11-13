@@ -30,6 +30,8 @@
 #  13) Gaming: Steam, Proton-GE, ProtonUp-Qt, Lutris, NTSYNC, GameMode,
 #      MangoHud, gamescope
 #   A) All of the above - snapshot first, firmware last
+#   P) Kernel parameters: add KERNEL_PARAMS (default thunderbolt.host_reset=0, a fix
+#      for a Thunderbolt external drive) to GRUB, update-grub and reboot. Not in 'A'.
 #   S) Software submenu: Brave Origin, qBittorrent, VLC, Bitwarden, Mullvad VPN,
 #      VS Code, Claude Code, Extension Manager  (apt first, Flathub fallback)
 #
@@ -97,6 +99,7 @@ OPT_BRAVE_FLATHUB_FALLBACK="${OPT_BRAVE_FLATHUB_FALLBACK:-n}"   # S: if Brave Or
 OPT_REBOOT_WHEN_DONE="${OPT_REBOOT_WHEN_DONE:-y}"       # reboot automatically at the end if a step needs it
 VMWARE_BUNDLE="${VMWARE_BUNDLE:-}"                      #  7: path to VMware-Workstation-*.bundle, used if VMware isn't installed yet
 VMWARE_PATCHED_URL="${VMWARE_PATCHED_URL:-}"            #  7: git URL of patched vmmon/vmnet sources, used if the bundled ones don't build
+KERNEL_PARAMS="${KERNEL_PARAMS-thunderbolt.host_reset=0}"   # P: kernel parameter(s) added to GRUB (space-separated); this one fixes a Thunderbolt external drive
 DESKTOP_USER="${DESKTOP_USER:-}"                        # your login name; only needed when the script can't work it out (run as root without sudo)
 
 # Extensions from extensions.gnome.org installed by step 11:  "ID | name"
@@ -146,6 +149,7 @@ GNOME_SETTINGS=(
 )
 
 NEED_REBOOT=0
+QUIT_AFTER=0          # set by a step that wants the script to finish (and reboot) once the current selection is done
 MOK_PENDING=0
 APT_FRESH=0
 declare -A RESULT
@@ -1777,6 +1781,84 @@ check_release() {
   esac
 }
 
+# =============================================================================
+#  KERNEL PARAMETERS  (P)
+#  Adds the KERNEL_PARAMS setting to GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub,
+#  runs update-grub and reboots. Not part of 'A': it is a fix for particular hardware.
+# =============================================================================
+GRUB_FILE="${GRUB_FILE:-/etc/default/grub}"
+
+kparam_active()  { tr ' ' '\n' </proc/cmdline | grep -qxF -- "$1"; }                 # in use by the running kernel?
+kparams_in_grub() {   # are all of KERNEL_PARAMS already in /etc/default/grub?
+  local line p
+  line="$(grep -E '^[[:space:]]*GRUB_CMDLINE_LINUX_DEFAULT=' "$GRUB_FILE" 2>/dev/null | tail -1)"
+  line="${line#*=}"; line="${line#[\"\']}"; line="${line%[\"\']}"
+  for p in $KERNEL_PARAMS; do
+    tr ' ' '\n' <<<"$line" | grep -qxF -- "$p" || return 1
+  done
+}
+
+step_kparams() {
+  local line value quote='"' p key tok new changed=0 out=""
+  local -a toks
+  [[ -n $KERNEL_PARAMS ]] || { warn "KERNEL_PARAMS is empty - nothing to add."; return 2; }
+  [[ -f $GRUB_FILE ]] || { err "$GRUB_FILE not found - this machine doesn't seem to boot with GRUB."; return 1; }
+
+  line="$(grep -E '^[[:space:]]*GRUB_CMDLINE_LINUX_DEFAULT=' "$GRUB_FILE" | tail -1)"
+  value="${line#*=}"
+  case $value in
+    \"*\") value="${value#\"}"; value="${value%\"}" ;;
+    \'*\') value="${value#\'}"; value="${value%\'}"; quote="'" ;;
+  esac
+  read -ra toks <<<"$value"
+
+  for p in $KERNEL_PARAMS; do
+    key="${p%%=*}"; new=()
+    local found=0
+    for tok in "${toks[@]}"; do
+      if [[ $tok == "$p" ]]; then found=1; new+=("$tok")                       # already there
+      elif [[ $tok == "$key" || $tok == "$key="* ]]; then                      # same parameter, different value: replace it
+        if [[ $found -eq 0 ]]; then new+=("$p"); found=1; changed=1; fi
+      else new+=("$tok"); fi
+    done
+    if [[ $found -eq 0 ]]; then new+=("$p"); changed=1; fi
+    toks=("${new[@]}")
+  done
+  out="${toks[*]}"
+
+  if [[ $changed -eq 0 ]]; then
+    ok "$GRUB_FILE already has: $KERNEL_PARAMS"
+  else
+    [[ -e $GRUB_FILE.bak ]] || cp -p "$GRUB_FILE" "$GRUB_FILE.bak"
+    if [[ -n $line ]]; then
+      NEWLINE="GRUB_CMDLINE_LINUX_DEFAULT=$quote$out$quote" awk '
+        /^[ \t]*GRUB_CMDLINE_LINUX_DEFAULT=/ { print ENVIRON["NEWLINE"]; next } { print }' "$GRUB_FILE" >"$GRUB_FILE.new"
+    else
+      { cat "$GRUB_FILE"; echo "GRUB_CMDLINE_LINUX_DEFAULT=$quote$out$quote"; } >"$GRUB_FILE.new"
+    fi
+    cat "$GRUB_FILE.new" >"$GRUB_FILE" && rm -f "$GRUB_FILE.new" || { err "Could not write $GRUB_FILE."; return 1; }
+    ok "Kernel command line is now: $out   (original kept as ${GRUB_FILE##*/}.bak)"
+  fi
+
+  local missing=0
+  for p in $KERNEL_PARAMS; do kparam_active "$p" || missing=1; done
+  if [[ $changed -eq 0 && $missing -eq 0 ]]; then
+    ok "Already in use by the running kernel - nothing to do."; return 0
+  fi
+
+  run update-grub || { err "update-grub failed - the change is in $GRUB_FILE but not in the boot menu yet."; return 1; }
+  NEED_REBOOT=1; QUIT_AFTER=1
+  ok "Boot menu updated. The parameter takes effect after a reboot."
+}
+
+status_kparams() {
+  local p active=1
+  [[ -n $KERNEL_PARAMS ]] || return
+  for p in $KERNEL_PARAMS; do kparam_active "$p" || active=0; done
+  if [[ $active -eq 1 ]]; then echo ok
+  elif kparams_in_grub; then echo "warn:reboot to apply"; fi
+}
+
 # ---------- menu -------------------------------------------------------------
 STEPS=(update components codecs nvidia drivers devtools vmware snapshots flathub firmware gnome msfonts gaming)
 LABELS=(
@@ -1821,6 +1903,7 @@ show_menu() {
     printf "  %2d) %-56s %s\n" $((i+1)) "${LABELS[$i]}" "$st"
   done
   echo "   A) All of the above (takes a snapshot first)"
+  printf "   P) %-56s %s\n" "Kernel parameter: ${KERNEL_PARAMS:-(none set)}, then reboot" "${RESULT[kparams]:-$(render_status "$(status_kparams)")}"
   echo "   S) Software…  (Brave, VLC, VS Code, Claude Code…)"
   echo "   Q) Quit"
   echo
@@ -1835,6 +1918,13 @@ handle_choice() {
            for i in "${!STEPS[@]}"; do [[ ${STEPS[$i]} == "$n" ]] && run_step "$i"; done
          done ;;
       S) software_menu ;;
+      P) echo; echo "${C_B}── Kernel parameter: $KERNEL_PARAMS ──${C_0}"
+         step_kparams
+         case $? in
+           0) RESULT[kparams]="${C_G}done${C_0}" ;;
+           2) RESULT[kparams]="${C_Y}skipped${C_0}" ;;
+           *) RESULT[kparams]="${C_R}FAILED${C_0}" ;;
+         esac ;;
       Q) return 1 ;;
       *) if [[ $tok =~ ^[0-9]+$ ]] && (( tok >= 1 && tok <= ${#STEPS[@]} )); then
            run_step $((tok-1))
@@ -1843,6 +1933,7 @@ handle_choice() {
          fi ;;
     esac
   done
+  [[ $QUIT_AFTER -eq 0 ]]      # a step asked to finish up (and reboot): leave the menu
 }
 
 finish() {
@@ -1851,6 +1942,7 @@ finish() {
   for i in "${!STEPS[@]}"; do
     [[ -n ${RESULT[${STEPS[$i]}]:-} ]] && printf "  %-58s %s\n" "${LABELS[$i]}" "${RESULT[${STEPS[$i]}]}"
   done
+  [[ -n ${RESULT[kparams]:-} ]] && printf "  %-58s %s\n" "Kernel parameter: $KERNEL_PARAMS" "${RESULT[kparams]}"
   local key label rest
   for i in "${!SOFTWARE[@]}"; do
     IFS='|' read -r key label rest <<<"${SOFTWARE[$i]}"

@@ -20,6 +20,7 @@ sudo ./debian-sid-postinstall.sh
 | `sudo ./debian-sid-postinstall.sh A` | Run every step (1–13) |
 | `sudo ./debian-sid-postinstall.sh 2 4` | Run selected steps |
 | `sudo ./debian-sid-postinstall.sh S` | Open the software menu |
+| `sudo ./debian-sid-postinstall.sh P` | Add the kernel parameter and reboot |
 
 **Starting from Debian stable (trixie)?** Run the script anyway. It notices, and offers to convert the machine to forky (testing) or sid (unstable): it switches the apt sources, upgrades every package and reboots. Run it again afterwards for the set-up itself. See [Converting from stable](#converting-from-stable).
 
@@ -84,6 +85,20 @@ Two Debian specifics:
 - **Step 2 edits your apt sources.** It adds the three sections to every Debian archive entry, in either sources format, keeps the original as a `.bak` file, and disables any leftover install-media (`cdrom:`) entry.
 - **Step 8 needs a Btrfs root.** Debian's installer defaults to ext4, in which case the step is skipped. To get Btrfs, use the installer's guided partitioning and change the root partition's "Use as" from ext4 to btrfs.
 - **Step 8 moves `/home` into its own subvolume.** Debian's installer puts `/home` inside the root subvolume, so snapshots of `/` would include your home folder. The move runs once at the next boot, before anyone can log in, and is logged to `/var/log/home-to-subvolume.log`. It is skipped if `/home` is already separate.
+
+## Kernel parameter (P)
+
+`P` in the main menu adds a kernel parameter to GRUB and reboots. It exists to fix a quirk with a Thunderbolt external drive, and is not part of `A`.
+
+It adds `thunderbolt.host_reset=0` to `GRUB_CMDLINE_LINUX_DEFAULT` in `/etc/default/grub` (keeping the original as `grub.bak`), runs `update-grub`, and reboots once the current selection has finished. Anything already on that line is kept, and running it twice doesn't add it twice. The menu shows whether the parameter is in use, or waiting for a reboot.
+
+To add different or extra parameters, change `KERNEL_PARAMS` in the settings block (space-separated), or set it for one run:
+
+```bash
+sudo KERNEL_PARAMS="thunderbolt.host_reset=0 quiet" ./debian-sid-postinstall.sh P
+```
+
+The reboot follows `OPT_REBOOT_WHEN_DONE`; set it to `n` to reboot yourself.
 
 ## Software
 
@@ -217,6 +232,7 @@ sudo OPT_GRUB_BTRFS=n ./debian-sid-postinstall.sh 8
 | `OPT_REBOOT_WHEN_DONE` | y | end | Reboot automatically if a step needs it |
 | `VMWARE_BUNDLE` | empty | 7 | Path to the VMware Workstation installer, used if VMware isn't installed |
 | `VMWARE_PATCHED_URL` | empty | 7 | Git URL of patched vmmon/vmnet sources, used if the bundled ones don't build |
+| `KERNEL_PARAMS` | `thunderbolt.host_reset=0` | P | Kernel parameter(s) that `P` adds to GRUB |
 | `DESKTOP_USER` | empty | 11, 13 | Your login name, only needed when running as root without sudo |
 
 ## What still asks for input
