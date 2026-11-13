@@ -204,13 +204,29 @@ apt_refresh() {   # refresh the package lists once per run (and again after a re
   APT_FRESH=1
 }
 apt_install() { apt_refresh; apt_get install "$@"; }
-# Install a list of packages; if the set fails (one bad name blocks apt), fall back to one at a time.
-apt_install_tolerant() {   # apt_install_tolerant "pkg pkg …"  -> 0 if all installed
-  local p rc=0
+# Is a package installable from the enabled sources right now?
+pkg_available() {
+  local c; c="$(apt-cache policy "$1" 2>/dev/null | awk '/Candidate:/ {print $2; exit}')"
+  [[ -n $c && $c != "(none)" ]]
+}
+# Install a list of packages. Names the archive doesn't offer right now are skipped and
+# reported (on forky/sid packages come and go), and left in UNAVAILABLE for the caller.
+# If the rest fail as a set, they are tried one at a time.
+UNAVAILABLE=""
+apt_install_tolerant() {   # apt_install_tolerant "pkg pkg …"  -> 0 if everything on offer was installed
+  local p rc=0 want=""
+  UNAVAILABLE=""
+  apt_refresh
+  for p in $1; do
+    if pkg_available "$p"; then want+="$p "; else UNAVAILABLE+="$p "; fi
+  done
+  UNAVAILABLE="${UNAVAILABLE% }"
+  [[ -n $UNAVAILABLE ]] && warn "Not in Debian's archive for this release right now, so skipped: $UNAVAILABLE"
+  [[ -n $want ]] || return 0
   # shellcheck disable=SC2086
-  apt_install $1 && return 0
+  apt_install $want && return 0
   warn "Installing them together failed - trying one at a time."
-  for p in $1; do apt_install "$p" || { warn "$p could not be installed."; rc=1; }; done
+  for p in $want; do apt_install "$p" || { warn "$p could not be installed."; rc=1; }; done
   return $rc
 }
 preseed() { echo "$*" | debconf-set-selections 2>>"$LOG"; }   # answer a package's install-time question in advance
@@ -469,7 +485,7 @@ step_drivers() {
   fi
 
   info "Installing firmware…"
-  apt_install_tolerant "$FIRMWARE_PACKAGES" || warn "Some firmware packages aren't available under those names - the rest were installed."
+  apt_install_tolerant "$FIRMWARE_PACKAGES" || warn "Some firmware packages could not be installed - see above."
   if grep -qi 'GenuineIntel' /proc/cpuinfo; then ucode=intel-microcode; else ucode=amd64-microcode; fi
   apt_install "$ucode" || warn "$ucode not installed"
 
@@ -1182,7 +1198,7 @@ proton_ge_installed() {   # proton_ge_installed [TAG]  - any GE-Proton, or one p
 
 step_gaming() {
   require_components || return 1
-  local u pkg rc=0
+  local u pkg rc=0 skipped=""
 
   # Steam and most Windows games are 32-bit
   if ! dpkg --print-foreign-architectures | grep -qx i386; then
@@ -1210,6 +1226,10 @@ step_gaming() {
 
   info "Installing gaming extras: $GAMING_PACKAGES"
   apt_install_tolerant "$GAMING_PACKAGES" || rc=1
+  skipped="$UNAVAILABLE"
+  if [[ " $skipped " == *" wine "* ]]; then
+    info "Games are unaffected: Steam (Proton) and Lutris bring their own Wine builds. Only standalone Windows apps need the wine package."
+  fi
 
   # NTSYNC: kernel-level Windows synchronisation, used automatically by current Proton-GE
   if modprobe ntsync 2>>"$LOG"; then
@@ -1233,7 +1253,10 @@ step_gaming() {
     install_proton_ge || rc=1
   fi
 
-  [[ $rc -eq 0 ]] && ok "Gaming set-up done. Per-game launch options: gamemoderun mangohud %command%"
+  if [[ $rc -eq 0 ]]; then
+    ok "Gaming set-up done. Per-game launch options: gamemoderun mangohud %command%"
+    [[ -n $skipped ]] && warn "Left out because Debian doesn't offer them at the moment: $skipped. Re-run step 13 later to pick them up."
+  fi
   return $rc
 }
 
@@ -1549,8 +1572,9 @@ status_gnome() {
 status_msfonts()  { have ttf-mscorefonts-installer && [[ -f $MSFONTS_FILE ]] && echo ok; }
 status_gaming() {
   have steam-installer || return
-  # shellcheck disable=SC2086
-  have $GAMING_PACKAGES || { echo "warn:some gaming extras missing"; return; }
+  local p missing=""
+  for p in $GAMING_PACKAGES; do have "$p" || missing+="$p "; done
+  [[ -z $missing ]] || { echo "warn:not installed: ${missing% }"; return; }
   if [[ ${OPT_PROTON_GE,,} == y* ]] && ! proton_ge_installed; then echo "warn:Proton-GE not installed"; return; fi
   echo ok
 }
