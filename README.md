@@ -229,7 +229,7 @@ sudo OPT_GRUB_BTRFS=n ./debian-sid-postinstall.sh 8
 - **Status:** the menus show what is already installed, read from the system, so they are accurate after a reboot. Steps 1 and 10 stay blank because checking them needs the network.
 - **Re-running is safe:** steps skip or refresh what is already there.
 - **Log:** everything is written to `/var/log/debian-sid-postinstall.log`.
-- **Package names move on sid.** Where a list of packages is installed (firmware, gaming extras), a name that no longer exists is reported and the rest still install.
+- **Packages come and go on forky/sid.** Where a list of packages is installed (firmware, gaming extras), anything Debian doesn't offer at that moment is skipped and named, and the rest still install. Re-run the step later to pick it up. Wine is a common example: it is sometimes out of testing for a while. Games are unaffected, because Steam (Proton) and Lutris bring their own Wine builds.
 - **Other Debian releases:** the script warns but carries on; some package names may differ on stable.
 
 ## Licence
